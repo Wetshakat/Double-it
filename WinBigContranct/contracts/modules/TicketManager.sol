@@ -4,13 +4,13 @@ pragma solidity ^0.8.20;
 import {Types} from "../libraries/Types.sol";
 import {Errors} from "../libraries/Errors.sol";
 import {Events} from "../libraries/Events.sol";
-import {FortunaBase} from "../abstracts/FortunaBase.sol";
+import {WinBigBase} from "../abstracts/WinBigBase.sol";
 
 /**
  * @title TicketManager
  * @notice Handles ticket purchases and management
  */
-abstract contract TicketManager is FortunaBase {
+abstract contract TicketManager is WinBigBase {
     /**
      * @notice Buy tickets for a round
      * @param ticketAmount Number of tickets to purchase

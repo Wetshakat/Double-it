@@ -3,7 +3,7 @@ pragma solidity ^0.8.20;
 
 /**
  * @title Types
- * @notice Data structures for FortunaRounds
+ * @notice Data structures for WinBigRounds
  */
 library Types {
     /**

@@ -3,7 +3,7 @@ pragma solidity ^0.8.20;
 
 /**
  * @title Constants
- * @notice Protocol constants for FortunaRounds
+ * @notice Protocol constants for WinBigRounds
  */
 library Constants {
     // Fee limits

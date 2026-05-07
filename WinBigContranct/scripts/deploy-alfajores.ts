@@ -7,7 +7,7 @@ async function main() {
   const keyHash = process.env.KEY_HASH_ALFAJORES!;
   const subscriptionId = BigInt(process.env.VRF_SUBSCRIPTION_ID_ALFAJORES || "0");
 
-  console.log("Deploying FortunaRounds to Alfajores...");
+  console.log("Deploying WinBigRounds to Alfajores...");
   console.log({
     paymentToken,
     treasury,
@@ -16,8 +16,8 @@ async function main() {
     subscriptionId: subscriptionId.toString()
   });
 
-  const FortunaRounds = await ethers.getContractFactory("FortunaRounds");
-  const fortuna = await FortunaRounds.deploy(
+  const WinBigRounds = await ethers.getContractFactory("WinBigRounds");
+  const fortuna = await WinBigRounds.deploy(
     paymentToken,
     treasury,
     ethers.parseEther("10"), // 10 cUSD per ticket
@@ -31,7 +31,7 @@ async function main() {
   await fortuna.waitForDeployment();
   const address = await fortuna.getAddress();
   
-  console.log(`FortunaRounds deployed to: ${address}`);
+  console.log(`WinBigRounds deployed to: ${address}`);
   console.log(`Verify with: npx hardhat verify --network alfajores ${address} ${paymentToken} ${treasury} ${ethers.parseEther("10")} 100 300 ${vrfCoordinator} ${keyHash} ${subscriptionId}`);
 }
 

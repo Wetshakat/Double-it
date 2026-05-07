@@ -12,10 +12,10 @@ import {Constants} from "../libraries/Constants.sol";
 import {Errors} from "../libraries/Errors.sol";
 
 /**
- * @title FortunaBase
+ * @title WinBigBase
  * @notice Base contract with shared state and modifiers
  */
-abstract contract FortunaBase is Ownable, ReentrancyGuard, Pausable {
+abstract contract WinBigBase is Ownable, ReentrancyGuard, Pausable {
     using SafeERC20 for IERC20;
 
     // ============ State Variables ============

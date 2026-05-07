@@ -3,7 +3,7 @@ import { network } from "hardhat";
 
 const { ethers } = await network.create();
 
-describe("FortunaRounds", function () {
+describe("WinBigRounds", function () {
   let fortuna: any;
   let token: any;
   let owner: any;
@@ -26,8 +26,8 @@ describe("FortunaRounds", function () {
     await token.connect(owner).transfer(user1.address, 10000n * 10n ** 18n);
     await token.connect(owner).transfer(user2.address, 10000n * 10n ** 18n);
 
-    // Deploy FortunaRounds
-    fortuna = await ethers.deployContract("FortunaRounds", [
+    // Deploy WinBigRounds
+    fortuna = await ethers.deployContract("WinBigRounds", [
       await token.getAddress(),
       treasury.address,
       TICKET_PRICE,
@@ -72,7 +72,7 @@ describe("FortunaRounds", function () {
 
     it("Should revert with zero payment token", async function () {
       await expect(
-        ethers.deployContract("FortunaRounds", [
+        ethers.deployContract("WinBigRounds", [
           ethers.ZeroAddress,
           treasury.address,
           TICKET_PRICE,
@@ -87,7 +87,7 @@ describe("FortunaRounds", function () {
 
     it("Should revert with zero treasury", async function () {
       await expect(
-        ethers.deployContract("FortunaRounds", [
+        ethers.deployContract("WinBigRounds", [
           await token.getAddress(),
           ethers.ZeroAddress,
           TICKET_PRICE,
@@ -102,7 +102,7 @@ describe("FortunaRounds", function () {
 
     it("Should revert with zero ticket price", async function () {
       await expect(
-        ethers.deployContract("FortunaRounds", [
+        ethers.deployContract("WinBigRounds", [
           await token.getAddress(),
           treasury.address,
           0n,

@@ -1,4 +1,4 @@
-# FortunaRounds Deployment Guide
+# WinBigRounds Deployment Guide
 
 ## Prerequisites
 
@@ -64,7 +64,7 @@ VRF_SUBSCRIPTION_ID_ALFAJORES=0
 
 ### 2. Add Consumer Contract
 
-After deploying FortunaRounds:
+After deploying WinBigRounds:
 1. Go to your subscription on VRF Subscription Manager
 2. Add the deployed contract address as a consumer
 
@@ -74,9 +74,9 @@ After deploying FortunaRounds:
 
 ```bash
 # Deploy to Alfajores testnet
-npx hardhat ignition deploy ignition/modules/FortunaRounds.ts --network alfajores \
+npx hardhat ignition deploy ignition/modules/WinBigRounds.ts --network alfajores \
   --parameters '{
-    "FortunaRounds": {
+    "WinBigRounds": {
       "paymentToken": "0x874069Fa1Eb16D44d622F2e0Ca25eeA172369bC1",
       "treasury": "YOUR_TREASURY_ADDRESS",
       "vrfCoordinator": "0xbd13f082824249580e7247B383Bc83654a637d44",
@@ -122,7 +122,7 @@ npx hardhat console --network alfajores
 ```
 
 ```javascript
-const fortuna = await ethers.getContractAt("FortunaRounds", "YOUR_CONTRACT_ADDRESS");
+const fortuna = await ethers.getContractAt("WinBigRounds", "YOUR_CONTRACT_ADDRESS");
 const token = await ethers.getContractAt("IERC20", "0x874069Fa1Eb16D44d622F2e0Ca25eeA172369bC1");
 
 // Approve tokens
@@ -197,5 +197,5 @@ VRF_SUBSCRIPTION_ID_CELO=<mainnet_subscription_id>
 
 Then deploy:
 ```bash
-npx hardhat ignition deploy ignition/modules/FortunaRounds.ts --network celo
+npx hardhat ignition deploy ignition/modules/WinBigRounds.ts --network celo
 ```

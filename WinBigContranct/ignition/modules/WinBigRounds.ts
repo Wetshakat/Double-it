@@ -1,6 +1,6 @@
 import { buildModule } from "@nomicfoundation/hardhat-ignition/modules";
 
-export default buildModule("FortunaRounds", (m) => {
+export default buildModule("WinBigRounds", (m) => {
   // Get parameters from environment or use defaults
   const paymentToken = m.getParameter("paymentToken");
   const treasury = m.getParameter("treasury");
@@ -11,7 +11,7 @@ export default buildModule("FortunaRounds", (m) => {
   const keyHash = m.getParameter("keyHash");
   const subscriptionId = m.getParameter("subscriptionId", 0n);
 
-  const fortuna = m.contract("FortunaRounds", [
+  const fortuna = m.contract("WinBigRounds", [
     paymentToken,
     treasury,
     ticketPrice,

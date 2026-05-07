@@ -1,10 +1,10 @@
-# FortunaRounds - Prize Pool Protocol
+# WinBigRounds - Prize Pool Protocol
 
 A production-grade Solidity smart contract for onchain prize-pool rounds, designed for MiniPay/Celo.
 
 ## Overview
 
-FortunaRounds is a decentralized prize-pool protocol where users buy tickets into timed rounds. Each round lasts 5 minutes and selects one winner who receives the prize pool minus platform fees.
+WinBigRounds is a decentralized prize-pool protocol where users buy tickets into timed rounds. Each round lasts 5 minutes and selects one winner who receives the prize pool minus platform fees.
 
 ### Key Features
 
@@ -97,19 +97,19 @@ npx hardhat test mocha
 ### Local Deployment
 
 ```bash
-npx hardhat ignition deploy ignition/modules/FortunaRounds.ts
+npx hardhat ignition deploy ignition/modules/WinBigRounds.ts
 ```
 
 ### Deploy to Celo Alfajores (Testnet)
 
 ```bash
-npx hardhat ignition deploy --network alfajores ignition/modules/FortunaRounds.ts
+npx hardhat ignition deploy --network alfajores ignition/modules/WinBigRounds.ts
 ```
 
 ### Deploy to Celo Mainnet
 
 ```bash
-npx hardhat ignition deploy --network celo ignition/modules/FortunaRounds.ts
+npx hardhat ignition deploy --network celo ignition/modules/WinBigRounds.ts
 ```
 
 ### Constructor Parameters

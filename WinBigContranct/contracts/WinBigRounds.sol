@@ -2,17 +2,17 @@
 pragma solidity ^0.8.20;
 
 /**
- * @title FortunaRounds
- * @notice Main entry point for the FortunaRounds prize pool protocol
+ * @title WinBigRounds
+ * @notice Main entry point for the WinBigRounds prize pool protocol
  * @dev Inherits all modular functionality from AdminManager
  *
  * Architecture:
- * ├── FortunaRounds.sol (Main contract)
+ * ├── WinBigRounds.sol (Main contract)
  * │   └── AdminManager.sol (Admin functions)
  * │       └── WinnerSelector.sol (Winner selection & payouts)
  * │           └── RoundManager.sol (Round lifecycle)
  * │               └── TicketManager.sol (Ticket purchases)
- * │                   └── FortunaBase.sol (Shared state & utilities)
+ * │                   └── WinBigBase.sol (Shared state & utilities)
  * │
  * ├── libraries/
  * │   ├── Types.sol (Data structures)
@@ -21,7 +21,7 @@ pragma solidity ^0.8.20;
  * │   └── Events.sol (Event definitions)
  * │
  * └── interfaces/
- *     └── IFortunaRounds.sol (Public interface)
+ *     └── IWinBigRounds.sol (Public interface)
  *
  * Round Lifecycle:
  * OPEN → DRAWING → COMPLETED
@@ -29,12 +29,12 @@ pragma solidity ^0.8.20;
  *         CANCELLED (if 0 tickets)
  */
 import {AdminManager} from "./modules/AdminManager.sol";
-import {FortunaBase} from "./abstracts/FortunaBase.sol";
+import {WinBigBase} from "./abstracts/WinBigBase.sol";
 import {WinnerSelector} from "./modules/WinnerSelector.sol";
 
-contract FortunaRounds is AdminManager {
+contract WinBigRounds is AdminManager {
     /**
-     * @notice Initialize FortunaRounds protocol
+     * @notice Initialize WinBigRounds protocol
      * @param _paymentToken ERC20 token for ticket payments
      * @param _treasury Treasury wallet for fee collection
      * @param _ticketPrice Price per ticket
@@ -54,7 +54,7 @@ contract FortunaRounds is AdminManager {
         bytes32 _keyHash,
         uint64 _subscriptionId
     )
-        FortunaBase(_paymentToken, _treasury, _ticketPrice, _maxTickets, _roundDuration)
+        WinBigBase(_paymentToken, _treasury, _ticketPrice, _maxTickets, _roundDuration)
         WinnerSelector(_vrfCoordinator, _keyHash, _subscriptionId)
     {
         // Create first round

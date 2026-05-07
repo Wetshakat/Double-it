@@ -2,10 +2,10 @@
 pragma solidity ^0.8.20;
 
 /**
- * @title IFortunaRounds
- * @notice Interface for the FortunaRounds prize pool protocol
+ * @title IWinBigRounds
+ * @notice Interface for the WinBigRounds prize pool protocol
  */
-interface IFortunaRounds {
+interface IWinBigRounds {
     // ============ Enums ============
     enum RoundStatus { OPEN, DRAWING, COMPLETED, CANCELLED }
 
