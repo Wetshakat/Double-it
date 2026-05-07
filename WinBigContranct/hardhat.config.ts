@@ -1,5 +1,8 @@
 import hardhatToolboxMochaEthersPlugin from "@nomicfoundation/hardhat-toolbox-mocha-ethers";
 import { configVariable, defineConfig } from "hardhat/config";
+import * as dotenv from "dotenv";
+
+dotenv.config();
 
 export default defineConfig({
   plugins: [hardhatToolboxMochaEthersPlugin],
@@ -28,11 +31,17 @@ export default defineConfig({
       type: "edr-simulated",
       chainType: "op",
     },
-    sepolia: {
+    alfajores: {
       type: "http",
       chainType: "l1",
-      url: configVariable("SEPOLIA_RPC_URL"),
-      accounts: [configVariable("SEPOLIA_PRIVATE_KEY")],
+      url: process.env.ALFAJORES_RPC_URL || "https://alfajores-forno.celo-testnet.org",
+      accounts: process.env.ALFAJORES_PRIVATE_KEY ? [process.env.ALFAJORES_PRIVATE_KEY] : [],
+    },
+    celo: {
+      type: "http",
+      chainType: "l1",
+      url: process.env.CELO_RPC_URL || "https://forno.celo.org",
+      accounts: process.env.CELO_PRIVATE_KEY ? [process.env.CELO_PRIVATE_KEY] : [],
     },
   },
 });

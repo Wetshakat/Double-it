@@ -1,57 +1,165 @@
-# Sample Hardhat 3 Beta Project (`mocha` and `ethers`)
+# FortunaRounds - Prize Pool Protocol
 
-This project showcases a Hardhat 3 Beta project using `mocha` for tests and the `ethers` library for Ethereum interactions.
+A production-grade Solidity smart contract for onchain prize-pool rounds, designed for MiniPay/Celo.
 
-To learn more about the Hardhat 3 Beta, please visit the [Getting Started guide](https://hardhat.org/docs/getting-started#getting-started-with-hardhat-3). To share your feedback, join our [Hardhat 3 Beta](https://hardhat.org/hardhat3-beta-telegram-group) Telegram group or [open an issue](https://github.com/NomicFoundation/hardhat/issues/new) in our GitHub issue tracker.
+## Overview
 
-## Project Overview
+FortunaRounds is a decentralized prize-pool protocol where users buy tickets into timed rounds. Each round lasts 5 minutes and selects one winner who receives the prize pool minus platform fees.
 
-This example project includes:
+### Key Features
 
-- A simple Hardhat configuration file.
-- Foundry-compatible Solidity unit tests.
-- TypeScript integration tests using `mocha` and ethers.js
-- Examples demonstrating how to connect to different types of networks, including locally simulating OP mainnet.
+- **ERC20 Stablecoin Payments**: Users pay with cUSD or USDC-compatible tokens
+- **5-Minute Rounds**: Fixed duration rounds with automatic winner selection
+- **Multiple Tickets**: Users can buy multiple tickets to increase winning chances
+- **Provably Fair Randomness**: Integration with Chainlink VRF for secure randomness
+- **2% Platform Fee**: Configurable fee (max 5%) sent to treasury
+- **Security**: ReentrancyGuard, Pausable, Ownable, SafeERC20
 
-## Usage
+## Contract Architecture
 
-### Running Tests
+### Round Lifecycle
 
-To run all the tests in the project, execute the following command:
-
-```shell
-npx hardhat test
+```
+OPEN → DRAWING → COMPLETED
+                    ↓
+               CANCELLED (if 0 tickets)
 ```
 
-You can also selectively run the Solidity or `mocha` tests:
+1. **OPEN**: Users can buy tickets
+2. **DRAWING**: Round closed, waiting for VRF randomness
+3. **COMPLETED**: Winner selected and paid
+4. **CANCELLED**: Round with 0 tickets sold
 
-```shell
-npx hardhat test solidity
+### State Variables
+
+| Variable | Type | Description |
+|----------|------|-------------|
+| `paymentToken` | IERC20 | ERC20 token for ticket payments |
+| `treasury` | address | Treasury wallet for fee collection |
+| `feeBps` | uint256 | Platform fee in basis points (default: 200 = 2%) |
+| `currentRoundId` | uint256 | ID of the current active round |
+| `ticketPrice` | uint256 | Price per ticket in payment tokens |
+| `maxTickets` | uint256 | Maximum tickets per round |
+| `maxTicketsPerWallet` | uint256 | Maximum tickets per wallet (0 = unlimited) |
+| `roundDuration` | uint256 | Round duration in seconds (default: 300 = 5 min) |
+
+### Functions
+
+#### User Functions
+
+- `buyTickets(uint256 ticketAmount)`: Buy tickets for the current round
+- `closeRound(uint256 roundId)`: Close an expired or sold-out round
+- `getCurrentRound()`: Get current round details
+- `getRound(uint256 roundId)`: Get round details by ID
+- `getUserTickets(uint256 roundId, address user)`: Get user's ticket count
+- `getTicketOwner(uint256 roundId, uint256 ticketIndex)`: Get ticket owner
+
+#### Admin Functions
+
+- `updateTreasury(address newTreasury)`: Update treasury address
+- `updateFeeBps(uint256 newFeeBps)`: Update platform fee (max 5%)
+- `updateTicketPrice(uint256 newPrice)`: Update ticket price for future rounds
+- `updateMaxTickets(uint256 newMax)`: Update max tickets per round
+- `updateMaxTicketsPerWallet(uint256 newMax)`: Set per-wallet ticket limit
+- `pause()`: Pause contract
+- `unpause()`: Unpause contract
+
+### Events
+
+- `RoundCreated(roundId, ticketPrice, maxTickets, startTime, endTime)`
+- `TicketsPurchased(roundId, buyer, ticketAmount, totalCost)`
+- `RoundClosed(roundId, totalTicketsSold, prizePool)`
+- `RandomnessRequested(roundId, requestId)`
+- `WinnerSelected(roundId, winner, winningTicketIndex, prizeAmount, protocolFee)`
+- `PrizePaid(roundId, winner, amount)`
+- `FeePaid(roundId, treasury, amount)`
+
+## Installation
+
+```bash
+npm install
+```
+
+## Compilation
+
+```bash
+npx hardhat compile
+```
+
+## Testing
+
+```bash
 npx hardhat test mocha
 ```
 
-### Make a deployment to Sepolia
+## Deployment
 
-This project includes an example Ignition module to deploy the contract. You can deploy this module to a locally simulated chain or to Sepolia.
+### Local Deployment
 
-To run the deployment to a local chain:
-
-```shell
-npx hardhat ignition deploy ignition/modules/Counter.ts
+```bash
+npx hardhat ignition deploy ignition/modules/FortunaRounds.ts
 ```
 
-To run the deployment to Sepolia, you need an account with funds to send the transaction. The provided Hardhat configuration includes a Configuration Variable called `SEPOLIA_PRIVATE_KEY`, which you can use to set the private key of the account you want to use.
+### Deploy to Celo Alfajores (Testnet)
 
-You can set the `SEPOLIA_PRIVATE_KEY` variable using the `hardhat-keystore` plugin or by setting it as an environment variable.
-
-To set the `SEPOLIA_PRIVATE_KEY` config variable using `hardhat-keystore`:
-
-```shell
-npx hardhat keystore set SEPOLIA_PRIVATE_KEY
+```bash
+npx hardhat ignition deploy --network alfajores ignition/modules/FortunaRounds.ts
 ```
 
-After setting the variable, you can run the deployment with the Sepolia network:
+### Deploy to Celo Mainnet
 
-```shell
-npx hardhat ignition deploy --network sepolia ignition/modules/Counter.ts
+```bash
+npx hardhat ignition deploy --network celo ignition/modules/FortunaRounds.ts
 ```
+
+### Constructor Parameters
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `paymentToken` | address | ERC20 token address (e.g., cUSD) |
+| `treasury` | address | Treasury wallet for fees |
+| `ticketPrice` | uint256 | Price per ticket |
+| `maxTickets` | uint256 | Maximum tickets per round |
+| `roundDuration` | uint256 | Round duration in seconds |
+| `vrfCoordinator` | address | Chainlink VRF Coordinator address |
+| `keyHash` | bytes32 | Chainlink VRF key hash |
+| `subscriptionId` | uint64 | Chainlink VRF subscription ID |
+
+## Security Features
+
+- **ReentrancyGuard**: Protects against reentrancy attacks
+- **Pausable**: Emergency pause functionality
+- **Ownable**: Admin functions restricted to owner
+- **SafeERC20**: Safe token transfers
+- **Input Validation**: All inputs validated with custom errors
+- **Fee Cap**: Maximum 5% fee to protect users
+- **No Owner Manipulation**: Owner cannot alter active rounds
+
+## VRF Integration
+
+For production, integrate with Chainlink VRF:
+
+### Celo Mainnet VRF Addresses
+
+```solidity
+vrfCoordinator = 0x...;
+keyHash = 0x...;
+```
+
+### Celo Alfajores VRF Addresses
+
+```solidity
+vrfCoordinator = 0x...;
+keyHash = 0x...;
+```
+
+## Gas Optimization
+
+- Uses mappings for O(1) ticket lookups
+- Batch operations for multiple tickets
+- Efficient storage layout
+- Uses custom errors instead of revert strings
+
+## License
+
+MIT License
