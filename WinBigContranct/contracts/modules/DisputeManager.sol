@@ -71,7 +71,7 @@ abstract contract DisputeManager is AdminManager, AccessControl {
     constructor() {
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
         _grantRole(ARBITER_ROLE, msg.sender);
-        disputeFee = 0.01 ether; // Small fee to prevent spam disputes
+        disputeFee = 1e18; // 1 token (in payment token decimals)
     }
 
     // ============ External Functions ============
@@ -86,15 +86,15 @@ abstract contract DisputeManager is AdminManager, AccessControl {
         uint256 roundId,
         DisputeTypes.DisputeReason reason,
         string calldata description
-    ) external payable roundExists(roundId) {
+    ) external roundExists(roundId) {
         // Only ticket holders can raise disputes
         if (_userTicketCount[roundId][msg.sender] == 0) {
             revert Errors.InvalidAmount();
         }
-        
-        // Check dispute fee
-        if (msg.value < disputeFee) {
-            revert Errors.InvalidAmount();
+
+        // Collect dispute fee in payment token
+        if (disputeFee > 0) {
+            _transferTokens(msg.sender, address(this), disputeFee);
         }
 
         // Create dispute
@@ -234,6 +234,20 @@ abstract contract DisputeManager is AdminManager, AccessControl {
      */
     function updateDisputeFee(uint256 newFee) external onlyOwner {
         disputeFee = newFee;
+    }
+
+    /**
+     * @notice Withdraw accumulated dispute fees to treasury
+     */
+    function withdrawDisputeFees() external onlyOwner {
+        uint256 balance = paymentToken.balanceOf(address(this));
+        // Only withdraw what isn't locked in active prize pools
+        // Dispute fees are any balance above the sum of active prize pools
+        uint256 activePrizePool = _rounds[currentRoundId].prizePool;
+        uint256 withdrawable = balance > activePrizePool ? balance - activePrizePool : 0;
+        if (withdrawable > 0) {
+            _safeTransfer(treasury, withdrawable);
+        }
     }
 
     // ============ Internal Functions ============

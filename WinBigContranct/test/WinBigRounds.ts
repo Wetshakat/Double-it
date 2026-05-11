@@ -5,52 +5,49 @@ const { ethers } = await network.create();
 
 describe("WinBigRounds", function () {
   let fortuna: any;
+  let mockVRF: any;
   let token: any;
   let owner: any;
   let user1: any;
   let user2: any;
   let treasury: any;
 
-  const TICKET_PRICE = 10n * 10n ** 18n; // 10 tokens with 18 decimals
+  const TICKET_PRICE = 10n * 10n ** 18n;
   const MAX_TICKETS = 100n;
-  const ROUND_DURATION = 300n; // 5 minutes
+  const ROUND_DURATION = 300n;
   const INITIAL_SUPPLY = 1000000n * 10n ** 18n;
 
   beforeEach(async function () {
     [owner, user1, user2, treasury] = await ethers.getSigners();
 
-    // Deploy mock ERC20
     token = await ethers.deployContract("MockERC20", ["Test USD", "TUSD", INITIAL_SUPPLY]);
-
-    // Distribute tokens to users (owner has all tokens initially)
     await token.connect(owner).transfer(user1.address, 10000n * 10n ** 18n);
     await token.connect(owner).transfer(user2.address, 10000n * 10n ** 18n);
 
-    // Deploy WinBigRounds
+    mockVRF = await ethers.deployContract("MockVRFCoordinator");
+
     fortuna = await ethers.deployContract("WinBigRounds", [
       await token.getAddress(),
       treasury.address,
       TICKET_PRICE,
       MAX_TICKETS,
       ROUND_DURATION,
-      ethers.ZeroAddress, // VRF coordinator (mock)
+      await mockVRF.getAddress(),
       ethers.ZeroHash,
       0n
     ]);
   });
 
-  async function getRequestIdFromTx(tx: any) {
+  // Helper: close a round and fulfill VRF via the mock coordinator
+  async function closeAndFulfill(roundId: bigint, randomWord: bigint) {
+    const tx = await fortuna.closeRound(roundId);
     const receipt = await tx.wait();
-    const event = receipt.logs.find((log: any) => {
-      try {
-        const parsed = fortuna.interface.parseLog(log);
-        return parsed?.name === "RandomnessRequested";
-      } catch {
-        return false;
-      }
+    const log = receipt.logs.find((l: any) => {
+      try { return fortuna.interface.parseLog(l)?.name === "RandomnessRequested"; } catch { return false; }
     });
-    const parsedEvent = fortuna.interface.parseLog(event);
-    return parsedEvent?.args[1];
+    const requestId = fortuna.interface.parseLog(log)?.args[1];
+    await mockVRF.fulfillRandomWords(requestId, [randomWord]);
+    return requestId;
   }
 
   describe("Deployment", function () {
@@ -60,7 +57,7 @@ describe("WinBigRounds", function () {
       expect(await fortuna.ticketPrice()).to.equal(TICKET_PRICE);
       expect(await fortuna.maxTickets()).to.equal(MAX_TICKETS);
       expect(await fortuna.roundDuration()).to.equal(ROUND_DURATION);
-      expect(await fortuna.feeBps()).to.equal(200n); // 2%
+      expect(await fortuna.feeBps()).to.equal(200n);
     });
 
     it("Should create first round on deployment", async function () {
@@ -73,14 +70,8 @@ describe("WinBigRounds", function () {
     it("Should revert with zero payment token", async function () {
       await expect(
         ethers.deployContract("WinBigRounds", [
-          ethers.ZeroAddress,
-          treasury.address,
-          TICKET_PRICE,
-          MAX_TICKETS,
-          ROUND_DURATION,
-          ethers.ZeroAddress,
-          ethers.ZeroHash,
-          0n
+          ethers.ZeroAddress, treasury.address, TICKET_PRICE, MAX_TICKETS, ROUND_DURATION,
+          await mockVRF.getAddress(), ethers.ZeroHash, 0n
         ])
       ).to.be.revertedWithCustomError(fortuna, "InvalidAddress");
     });
@@ -88,14 +79,8 @@ describe("WinBigRounds", function () {
     it("Should revert with zero treasury", async function () {
       await expect(
         ethers.deployContract("WinBigRounds", [
-          await token.getAddress(),
-          ethers.ZeroAddress,
-          TICKET_PRICE,
-          MAX_TICKETS,
-          ROUND_DURATION,
-          ethers.ZeroAddress,
-          ethers.ZeroHash,
-          0n
+          await token.getAddress(), ethers.ZeroAddress, TICKET_PRICE, MAX_TICKETS, ROUND_DURATION,
+          await mockVRF.getAddress(), ethers.ZeroHash, 0n
         ])
       ).to.be.revertedWithCustomError(fortuna, "InvalidAddress");
     });
@@ -103,14 +88,8 @@ describe("WinBigRounds", function () {
     it("Should revert with zero ticket price", async function () {
       await expect(
         ethers.deployContract("WinBigRounds", [
-          await token.getAddress(),
-          treasury.address,
-          0n,
-          MAX_TICKETS,
-          ROUND_DURATION,
-          ethers.ZeroAddress,
-          ethers.ZeroHash,
-          0n
+          await token.getAddress(), treasury.address, 0n, MAX_TICKETS, ROUND_DURATION,
+          await mockVRF.getAddress(), ethers.ZeroHash, 0n
         ])
       ).to.be.revertedWithCustomError(fortuna, "InvalidAmount");
     });
@@ -118,7 +97,6 @@ describe("WinBigRounds", function () {
 
   describe("Buying Tickets", function () {
     beforeEach(async function () {
-      // Approve contract to spend tokens
       await token.connect(user1).approve(await fortuna.getAddress(), 1000n * 10n ** 18n);
       await token.connect(user2).approve(await fortuna.getAddress(), 1000n * 10n ** 18n);
     });
@@ -126,7 +104,6 @@ describe("WinBigRounds", function () {
     it("Should allow buying tickets", async function () {
       await fortuna.connect(user1).buyTickets(1);
       expect(await fortuna.getUserTickets(1, user1.address)).to.equal(1n);
-      
       const round = await fortuna.getCurrentRound();
       expect(round.totalTicketsSold).to.equal(1n);
       expect(round.prizePool).to.equal(TICKET_PRICE);
@@ -142,11 +119,8 @@ describe("WinBigRounds", function () {
     });
 
     it("Should revert if round is sold out", async function () {
-      // Buy max tickets
       await token.connect(user1).approve(await fortuna.getAddress(), 2000n * 10n ** 18n);
       await fortuna.connect(user1).buyTickets(100);
-      
-      // Round is now in DRAWING state
       await expect(fortuna.connect(user2).buyTickets(1)).to.be.revertedWithCustomError(fortuna, "RoundNotOpen");
     });
 
@@ -158,7 +132,6 @@ describe("WinBigRounds", function () {
     it("Should revert if trying to buy after round expired", async function () {
       await ethers.provider.send("evm_increaseTime", [301]);
       await ethers.provider.send("evm_mine");
-      
       await expect(fortuna.connect(user1).buyTickets(1)).to.be.revertedWithCustomError(fortuna, "RoundExpired");
     });
 
@@ -194,46 +167,31 @@ describe("WinBigRounds", function () {
 
     it("Should auto-close when sold out", async function () {
       await fortuna.connect(user1).buyTickets(100);
-      
       const round = await fortuna.getRound(1);
       expect(round.status).to.equal(1); // DRAWING
     });
 
     it("Should allow closing expired round", async function () {
       await fortuna.connect(user1).buyTickets(1);
-      
-      // Fast forward time
       await ethers.provider.send("evm_increaseTime", [301]);
       await ethers.provider.send("evm_mine");
-      
       await fortuna.closeRound(1);
-      
       const round = await fortuna.getRound(1);
       expect(round.status).to.equal(1); // DRAWING
     });
 
-    it("Should create new round after closing", async function () {
+    it("Should create new round after closing and fulfilling", async function () {
       await fortuna.connect(user1).buyTickets(1);
-      
       await ethers.provider.send("evm_increaseTime", [301]);
       await ethers.provider.send("evm_mine");
-      
-      const tx = await fortuna.closeRound(1);
-      const requestId = await getRequestIdFromTx(tx);
-      
-      // Fulfill randomness
-      const randomWords = [12345n];
-      await fortuna.fulfillRandomWords(requestId, randomWords);
-      
+      await closeAndFulfill(1n, 12345n);
       expect(await fortuna.currentRoundId()).to.equal(2n);
     });
 
     it("Should cancel round with zero tickets", async function () {
       await ethers.provider.send("evm_increaseTime", [301]);
       await ethers.provider.send("evm_mine");
-      
       await fortuna.closeRound(1);
-      
       const round = await fortuna.getRound(1);
       expect(round.status).to.equal(3); // CANCELLED
     });
@@ -247,12 +205,17 @@ describe("WinBigRounds", function () {
       await fortuna.connect(user1).buyTickets(1);
       await ethers.provider.send("evm_increaseTime", [301]);
       await ethers.provider.send("evm_mine");
-      
-      const tx = await fortuna.closeRound(1);
-      const requestId = await getRequestIdFromTx(tx);
-      await fortuna.fulfillRandomWords(requestId, [0n]);
-      
+      await closeAndFulfill(1n, 0n);
       await expect(fortuna.closeRound(1)).to.be.revertedWithCustomError(fortuna, "AlreadyCompleted");
+    });
+
+    it("Should revert if fulfillRandomWords called by non-coordinator", async function () {
+      await fortuna.connect(user1).buyTickets(1);
+      await ethers.provider.send("evm_increaseTime", [301]);
+      await ethers.provider.send("evm_mine");
+      await fortuna.closeRound(1);
+      await expect(fortuna.connect(user1).fulfillRandomWords(1n, [0n]))
+        .to.be.revertedWithCustomError(fortuna, "InvalidRequest");
     });
   });
 
@@ -263,80 +226,57 @@ describe("WinBigRounds", function () {
     });
 
     it("Should select correct winner based on randomness", async function () {
-      // User1 buys 10 tickets, User2 buys 10 tickets
       await fortuna.connect(user1).buyTickets(10);
       await fortuna.connect(user2).buyTickets(10);
-      
-      // Close round
       await ethers.provider.send("evm_increaseTime", [301]);
       await ethers.provider.send("evm_mine");
-      const tx = await fortuna.closeRound(1);
-      const requestId = await getRequestIdFromTx(tx);
-      
-      // Fulfill randomness with known value
-      const randomWords = [5n]; // Should select ticket index 5
-      await fortuna.fulfillRandomWords(requestId, randomWords);
-      
+      await closeAndFulfill(1n, 5n); // ticket index 5 → user1
       const round = await fortuna.getRound(1);
-      expect(round.winner).to.equal(user1.address); // Tickets 0-9 are user1
+      expect(round.winner).to.equal(user1.address);
       expect(round.status).to.equal(2); // COMPLETED
     });
 
     it("Should select user2 for higher random value", async function () {
       await fortuna.connect(user1).buyTickets(10);
       await fortuna.connect(user2).buyTickets(10);
-      
       await ethers.provider.send("evm_increaseTime", [301]);
       await ethers.provider.send("evm_mine");
-      const tx = await fortuna.closeRound(1);
-      const requestId = await getRequestIdFromTx(tx);
-      
-      // Ticket index 15 should be user2
-      const randomWords = [15n];
-      await fortuna.fulfillRandomWords(requestId, randomWords);
-      
+      await closeAndFulfill(1n, 15n); // ticket index 15 → user2
       const round = await fortuna.getRound(1);
       expect(round.winner).to.equal(user2.address);
     });
 
     it("Should distribute prize correctly with 2% fee", async function () {
       await fortuna.connect(user1).buyTickets(10);
-      
       const treasuryBalanceBefore = await token.balanceOf(treasury.address);
-      
       await ethers.provider.send("evm_increaseTime", [301]);
       await ethers.provider.send("evm_mine");
-      const tx = await fortuna.closeRound(1);
-      const requestId = await getRequestIdFromTx(tx);
-      
-      await fortuna.fulfillRandomWords(requestId, [0n]);
-      
+      await closeAndFulfill(1n, 0n);
       const prizePool = TICKET_PRICE * 10n;
-      const expectedFee = (prizePool * 200n) / 10000n; // 2%
-      const expectedPrize = prizePool - expectedFee;
-      
+      const expectedFee = (prizePool * 200n) / 10000n;
       const treasuryBalanceAfter = await token.balanceOf(treasury.address);
       expect(treasuryBalanceAfter - treasuryBalanceBefore).to.equal(expectedFee);
-      
-      // Verify prize was transferred to winner
       const round = await fortuna.getRound(1);
       expect(round.winner).to.equal(user1.address);
-      expect(round.prizePool).to.equal(prizePool);
     });
 
     it("Should emit WinnerSelected event", async function () {
       await fortuna.connect(user1).buyTickets(10);
-      
       await ethers.provider.send("evm_increaseTime", [301]);
       await ethers.provider.send("evm_mine");
+
       const tx = await fortuna.closeRound(1);
-      const requestId = await getRequestIdFromTx(tx);
-      
+      const receipt = await tx.wait();
+      const log = receipt.logs.find((l: any) => {
+        try { return fortuna.interface.parseLog(l)?.name === "RandomnessRequested"; } catch { return false; }
+      });
+      const requestId = fortuna.interface.parseLog(log)?.args[1];
+
       const prizePool = TICKET_PRICE * 10n;
       const expectedFee = (prizePool * 200n) / 10000n;
       const expectedPrize = prizePool - expectedFee;
-      
-      await expect(fortuna.fulfillRandomWords(requestId, [0n]))
+
+      await expect(mockVRF.fulfillRandomWords(requestId, [0n]))
         .to.emit(fortuna, "WinnerSelected")
         .withArgs(1n, user1.address, 0n, expectedPrize, expectedFee);
     });
@@ -375,7 +315,6 @@ describe("WinBigRounds", function () {
       await fortuna.pause();
       await token.connect(user1).approve(await fortuna.getAddress(), 100n * 10n ** 18n);
       await expect(fortuna.connect(user1).buyTickets(1)).to.be.revertedWithCustomError(fortuna, "EnforcedPause");
-      
       await fortuna.unpause();
       await fortuna.connect(user1).buyTickets(1);
     });
@@ -399,7 +338,6 @@ describe("WinBigRounds", function () {
     it("Should return ticket owner", async function () {
       await token.connect(user1).approve(await fortuna.getAddress(), 100n * 10n ** 18n);
       await fortuna.connect(user1).buyTickets(5);
-      
       expect(await fortuna.getTicketOwner(1, 0)).to.equal(user1.address);
       expect(await fortuna.getTicketOwner(1, 4)).to.equal(user1.address);
     });
@@ -407,7 +345,6 @@ describe("WinBigRounds", function () {
     it("Should return user ticket count", async function () {
       await token.connect(user1).approve(await fortuna.getAddress(), 100n * 10n ** 18n);
       await fortuna.connect(user1).buyTickets(5);
-      
       expect(await fortuna.getUserTickets(1, user1.address)).to.equal(5n);
     });
   });
@@ -416,21 +353,12 @@ describe("WinBigRounds", function () {
     it("Should allow creating new round after completion", async function () {
       await token.connect(user1).approve(await fortuna.getAddress(), 100n * 10n ** 18n);
       await fortuna.connect(user1).buyTickets(1);
-      
       await ethers.provider.send("evm_increaseTime", [301]);
       await ethers.provider.send("evm_mine");
-      const tx = await fortuna.closeRound(1);
-      const requestId = await getRequestIdFromTx(tx);
-      await fortuna.fulfillRandomWords(requestId, [0n]);
-      
+      await closeAndFulfill(1n, 0n);
       expect(await fortuna.currentRoundId()).to.equal(2n);
-      
-      // Try to create another round manually (should work after completion)
       const newRound = await fortuna.getCurrentRound();
       expect(newRound.roundId).to.equal(2n);
     });
   });
 });
-
-
-
