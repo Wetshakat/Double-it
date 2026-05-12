@@ -34,9 +34,10 @@ abstract contract RoundManager is TicketManager {
     }
 
     /**
-     * @notice Create a new round (if current is completed)
+     * @notice Create a new round manually — only if current is completed/cancelled
+     * @dev Restricted to owner; rounds are normally auto-created after each round ends
      */
-    function createNewRound() external {
+    function createNewRound() external onlyOwner {
         Types.Round storage currentRound = _rounds[currentRoundId];
         
         if (currentRound.status != Types.RoundStatus.COMPLETED &&

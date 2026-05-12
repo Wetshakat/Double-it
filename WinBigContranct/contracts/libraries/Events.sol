@@ -64,4 +64,5 @@ library Events {
     event TicketPriceUpdated(uint256 oldPrice, uint256 newPrice);
     event MaxTicketsUpdated(uint256 oldMax, uint256 newMax);
     event MaxTicketsPerWalletUpdated(uint256 oldMax, uint256 newMax);
+    event VRFConfigUpdated(address newCoordinator, bytes32 newKeyHash, uint64 newSubscriptionId);
 }

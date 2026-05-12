@@ -20,15 +20,18 @@ abstract contract DisputeManager is AdminManager, AccessControl {
     // ============ Constants ============
     
     bytes32 public constant ARBITER_ROLE = keccak256("ARBITER_ROLE");
-    uint256 public constant DISPUTE_TIMEOUT = 1 hours; // Time to resolve disputes
+    uint256 public constant DISPUTE_TIMEOUT = 1 hours;
     
     // ============ State Variables ============
     
     uint256 public disputeCounter;
-    uint256 public disputeFee; // Fee to raise dispute (prevents spam)
-    
+    uint256 public disputeFee;
+    uint256 public disputeFeesCollected; // tracks fees separately from prize pools
+
     mapping(uint256 => DisputeTypes.Dispute) public disputes;
-    mapping(uint256 => uint256[]) public roundDisputes; // roundId => disputeIds
+    mapping(uint256 => uint256[]) public roundDisputes;
+    mapping(uint256 => bool) public refundEnabled;              // roundId => refund open
+    mapping(uint256 => mapping(address => bool)) public refundClaimed; // roundId => user => claimed
     
     // ============ Events ============
     
@@ -45,12 +48,9 @@ abstract contract DisputeManager is AdminManager, AccessControl {
         address indexed resolver,
         DisputeTypes.ResolutionAction action
     );
-    
-    event EmergencyRefund(
-        uint256 indexed roundId,
-        address indexed user,
-        uint256 amount
-    );
+
+    event RefundEnabled(uint256 indexed roundId);
+    event RefundClaimed(uint256 indexed roundId, address indexed user, uint256 amount);
 
     // ============ Modifiers ============
 
@@ -71,7 +71,7 @@ abstract contract DisputeManager is AdminManager, AccessControl {
     constructor() {
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
         _grantRole(ARBITER_ROLE, msg.sender);
-        disputeFee = 1e18; // 1 token (in payment token decimals)
+        disputeFee = 1e18;
     }
 
     // ============ External Functions ============
@@ -95,6 +95,7 @@ abstract contract DisputeManager is AdminManager, AccessControl {
         // Collect dispute fee in payment token
         if (disputeFee > 0) {
             _transferTokens(msg.sender, address(this), disputeFee);
+            disputeFeesCollected += disputeFee;
         }
 
         // Create dispute
@@ -146,7 +147,7 @@ abstract contract DisputeManager is AdminManager, AccessControl {
     }
 
     /**
-     * @notice Emergency refund all users in a round
+     * @notice Emergency refund — marks round as refundable, users pull their own refund
      * @param roundId The round to refund
      */
     function emergencyRefund(uint256 roundId)
@@ -156,35 +157,35 @@ abstract contract DisputeManager is AdminManager, AccessControl {
     {
         Types.Round storage round = _rounds[roundId];
         
-        // Can only refund OPEN or DRAWING rounds
         if (round.status == Types.RoundStatus.COMPLETED ||
             round.status == Types.RoundStatus.CANCELLED) {
             revert Errors.AlreadyCompleted();
         }
 
-        // Mark round as cancelled
         round.status = Types.RoundStatus.CANCELLED;
-
-        // Refund all ticket holders
-        // Note: This is gas-intensive for large rounds
-        // Consider pull pattern for production
-        uint256 totalSold = round.totalTicketsSold;
-        for (uint256 i = 0; i < totalSold; i++) {
-            address ticketOwner = _ticketOwners[roundId][i];
-            uint256 userTickets = _userTicketCount[roundId][ticketOwner];
-            
-            if (userTickets > 0) {
-                uint256 refundAmount = userTickets * round.ticketPrice;
-                _safeTransfer(ticketOwner, refundAmount);
-                
-                emit EmergencyRefund(roundId, ticketOwner, refundAmount);
-                
-                // Reset to prevent double refund
-                _userTicketCount[roundId][ticketOwner] = 0;
-            }
-        }
+        refundEnabled[roundId] = true;
 
         emit Events.RoundCancelled(roundId);
+        emit RefundEnabled(roundId);
+    }
+
+    /**
+     * @notice Claim refund for a cancelled round (pull pattern)
+     * @param roundId The cancelled round to claim refund from
+     */
+    function claimRefund(uint256 roundId) external nonReentrant roundExists(roundId) {
+        if (!refundEnabled[roundId]) revert Errors.RoundNotOpen();
+        if (refundClaimed[roundId][msg.sender]) revert Errors.AlreadyCompleted();
+
+        uint256 userTickets = _userTicketCount[roundId][msg.sender];
+        if (userTickets == 0) revert Errors.InvalidAmount();
+
+        refundClaimed[roundId][msg.sender] = true;
+
+        uint256 refundAmount = userTickets * _rounds[roundId].ticketPrice;
+        _safeTransfer(msg.sender, refundAmount);
+
+        emit RefundClaimed(roundId, msg.sender, refundAmount);
     }
 
     // ============ View Functions ============
@@ -240,14 +241,10 @@ abstract contract DisputeManager is AdminManager, AccessControl {
      * @notice Withdraw accumulated dispute fees to treasury
      */
     function withdrawDisputeFees() external onlyOwner {
-        uint256 balance = paymentToken.balanceOf(address(this));
-        // Only withdraw what isn't locked in active prize pools
-        // Dispute fees are any balance above the sum of active prize pools
-        uint256 activePrizePool = _rounds[currentRoundId].prizePool;
-        uint256 withdrawable = balance > activePrizePool ? balance - activePrizePool : 0;
-        if (withdrawable > 0) {
-            _safeTransfer(treasury, withdrawable);
-        }
+        uint256 withdrawable = disputeFeesCollected;
+        if (withdrawable == 0) revert Errors.InvalidAmount();
+        disputeFeesCollected = 0;
+        _safeTransfer(treasury, withdrawable);
     }
 
     // ============ Internal Functions ============
@@ -276,27 +273,9 @@ abstract contract DisputeManager is AdminManager, AccessControl {
 
     function _emergencyRefundInternal(uint256 roundId) internal {
         Types.Round storage round = _rounds[roundId];
-        
-        // Mark round as cancelled
         round.status = Types.RoundStatus.CANCELLED;
-
-        // Refund all ticket holders
-        uint256 totalSold = round.totalTicketsSold;
-        for (uint256 i = 0; i < totalSold; i++) {
-            address ticketOwner = _ticketOwners[roundId][i];
-            uint256 userTickets = _userTicketCount[roundId][ticketOwner];
-            
-            if (userTickets > 0) {
-                uint256 refundAmount = userTickets * round.ticketPrice;
-                _safeTransfer(ticketOwner, refundAmount);
-                
-                emit EmergencyRefund(roundId, ticketOwner, refundAmount);
-                
-                // Reset to prevent double refund
-                _userTicketCount[roundId][ticketOwner] = 0;
-            }
-        }
-
+        refundEnabled[roundId] = true;
         emit Events.RoundCancelled(roundId);
+        emit RefundEnabled(roundId);
     }
 }
