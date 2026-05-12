@@ -98,5 +98,6 @@ abstract contract AdminManager is WinnerSelector {
         vrfCoordinator = newCoordinator;
         keyHash = newKeyHash;
         subscriptionId = newSubscriptionId;
+        emit Events.VRFConfigUpdated(newCoordinator, newKeyHash, newSubscriptionId);
     }
 }

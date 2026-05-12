@@ -5,6 +5,7 @@ const { ethers } = await network.create();
 
 describe("WinBigRounds - Reentrancy Protection", function () {
   let winbig: any;
+  let mockVRF: any;
   let token: any;
   let attacker: any;
   let owner: any;
@@ -19,28 +20,25 @@ describe("WinBigRounds - Reentrancy Protection", function () {
   beforeEach(async function () {
     [owner, user1, treasury] = await ethers.getSigners();
 
-    // Deploy mock ERC20
     token = await ethers.deployContract("MockERC20", ["Test USD", "TUSD", INITIAL_SUPPLY]);
+    mockVRF = await ethers.deployContract("MockVRFCoordinator");
 
-    // Deploy WinBigRounds
     winbig = await ethers.deployContract("WinBigRounds", [
       await token.getAddress(),
       treasury.address,
       TICKET_PRICE,
       MAX_TICKETS,
       ROUND_DURATION,
-      ethers.ZeroAddress,
+      await mockVRF.getAddress(),
       ethers.ZeroHash,
       0n
     ]);
 
-    // Deploy attacker contract
     attacker = await ethers.deployContract("ReentrancyAttacker", [
       await token.getAddress(),
       await winbig.getAddress()
     ]);
 
-    // Fund attacker contract with tokens
     await token.transfer(await attacker.getAddress(), 1000n * 10n ** 18n);
   });
 

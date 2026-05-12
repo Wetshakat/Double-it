@@ -4,21 +4,23 @@ pragma solidity ^0.8.20;
 /**
  * @title WinBigRounds
  * @notice Main entry point for the WinBigRounds prize pool protocol
- * @dev Inherits all modular functionality from AdminManager
+ * @dev Inherits all modular functionality from DisputeManager
  *
  * Architecture:
  * ├── WinBigRounds.sol (Main contract)
- * │   └── AdminManager.sol (Admin functions)
- * │       └── WinnerSelector.sol (Winner selection & payouts)
- * │           └── RoundManager.sol (Round lifecycle)
- * │               └── TicketManager.sol (Ticket purchases)
- * │                   └── WinBigBase.sol (Shared state & utilities)
+ * │   └── DisputeManager.sol (Dispute resolution)
+ * │       └── AdminManager.sol (Admin functions)
+ * │           └── WinnerSelector.sol (Winner selection & payouts)
+ * │               └── RoundManager.sol (Round lifecycle)
+ * │                   └── TicketManager.sol (Ticket purchases)
+ * │                       └── WinBigBase.sol (Shared state & utilities)
  * │
  * ├── libraries/
  * │   ├── Types.sol (Data structures)
  * │   ├── Constants.sol (Protocol constants)
  * │   ├── Errors.sol (Error definitions)
- * │   └── Events.sol (Event definitions)
+ * │   ├── Events.sol (Event definitions)
+ * │   └── DisputeTypes.sol (Dispute structures)
  * │
  * └── interfaces/
  *     └── IWinBigRounds.sol (Public interface)
@@ -28,11 +30,11 @@ pragma solidity ^0.8.20;
  *              ↓
  *         CANCELLED (if 0 tickets)
  */
-import {AdminManager} from "./modules/AdminManager.sol";
+import {DisputeManager} from "./modules/DisputeManager.sol";
 import {WinBigBase} from "./abstracts/WinBigBase.sol";
 import {WinnerSelector} from "./modules/WinnerSelector.sol";
 
-contract WinBigRounds is AdminManager {
+contract WinBigRounds is DisputeManager {
     /**
      * @notice Initialize WinBigRounds protocol
      * @param _paymentToken ERC20 token for ticket payments
@@ -61,4 +63,5 @@ contract WinBigRounds is AdminManager {
         _createNewRound();
     }
 }
+
 

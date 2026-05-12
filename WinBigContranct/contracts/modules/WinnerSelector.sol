@@ -7,21 +7,26 @@ import {Errors} from "../libraries/Errors.sol";
 import {Events} from "../libraries/Events.sol";
 import {RoundManager} from "./RoundManager.sol";
 
+interface IVRFCoordinator {
+    function requestRandomWords(
+        bytes32 keyHash,
+        uint64 subId,
+        uint16 minimumRequestConfirmations,
+        uint32 callbackGasLimit,
+        uint32 numWords
+    ) external returns (uint256 requestId);
+}
+
 /**
  * @title WinnerSelector
- * @notice Handles winner selection and prize distribution
+ * @notice Handles winner selection and prize distribution via Chainlink VRF
  */
 abstract contract WinnerSelector is RoundManager {
-    // VRF state
     address public vrfCoordinator;
     bytes32 public keyHash;
     uint64 public subscriptionId;
 
-    // Request tracking
-    mapping(uint256 => mapping(uint256 => bool)) internal _vrfRequests;
     mapping(uint256 => uint256) internal _requestToRound;
-
-    // ============ Constructor ============
 
     constructor(
         address _vrfCoordinator,
@@ -33,85 +38,56 @@ abstract contract WinnerSelector is RoundManager {
         subscriptionId = _subscriptionId;
     }
 
-    // ============ External Functions ============
-
     /**
-     * @notice Callback for VRF randomness
-     * @param requestId VRF request ID
-     * @param randomWords Random numbers from VRF
+     * @notice Callback called by VRF coordinator — only coordinator can call this
      */
     function fulfillRandomWords(uint256 requestId, uint256[] calldata randomWords) external {
+        if (msg.sender != vrfCoordinator) revert Errors.InvalidRequest();
+
         uint256 roundId = _requestToRound[requestId];
         if (roundId == 0) revert Errors.InvalidRequest();
 
         Types.Round storage round = _rounds[roundId];
         if (round.status != Types.RoundStatus.DRAWING) revert Errors.AlreadyCompleted();
 
-        uint256 randomNumber = randomWords[0];
-        _selectWinner(roundId, randomNumber);
-    }
-
-    /**
-     * @notice Request randomness from VRF
-     */
-    function requestRandomness(uint256 roundId) external returns (uint256 requestId) {
-        Types.Round storage round = _rounds[roundId];
-        if (round.status != Types.RoundStatus.DRAWING) revert Errors.AlreadyCompleted();
-
-        requestId = _requestRandomnessInternal(roundId);
+        _selectWinner(roundId, randomWords[0]);
     }
 
     // ============ Internal Functions ============
 
     function _requestRandomness(uint256 roundId) internal override {
-        _requestRandomnessInternal(roundId);
-    }
+        uint256 requestId = IVRFCoordinator(vrfCoordinator).requestRandomWords(
+            keyHash,
+            subscriptionId,
+            Constants.VRF_REQUEST_CONFIRMATIONS,
+            Constants.VRF_CALLBACK_GAS_LIMIT,
+            Constants.VRF_NUM_WORDS
+        );
 
-    function _requestRandomnessInternal(uint256 roundId) internal returns (uint256 requestId) {
-        // Generate deterministic request ID for testing
-        // In production, call Chainlink VRF coordinator
-        requestId = uint256(keccak256(abi.encodePacked(block.timestamp, roundId, block.number)));
-        
         _requestToRound[requestId] = roundId;
-        _vrfRequests[roundId][requestId] = true;
-
         emit Events.RandomnessRequested(roundId, requestId);
-        
-        return requestId;
     }
 
     function _selectWinner(uint256 roundId, uint256 randomNumber) internal {
         Types.Round storage round = _rounds[roundId];
 
-        // Select winning ticket
         uint256 winningTicketIndex = randomNumber % round.totalTicketsSold;
         address winner = _ticketOwners[roundId][winningTicketIndex];
 
-        // Calculate payouts
         uint256 protocolFee = _calculateFee(round.prizePool);
         uint256 prizeAmount = round.prizePool - protocolFee;
 
-        // Update round state
         round.winner = winner;
         round.status = Types.RoundStatus.COMPLETED;
 
-        emit Events.WinnerSelected(
-            roundId,
-            winner,
-            winningTicketIndex,
-            prizeAmount,
-            protocolFee
-        );
+        emit Events.WinnerSelected(roundId, winner, winningTicketIndex, prizeAmount, protocolFee);
 
-        // Transfer prize to winner
         _safeTransfer(winner, prizeAmount);
         emit Events.PrizePaid(roundId, winner, prizeAmount);
 
-        // Transfer fee to treasury
         _safeTransfer(treasury, protocolFee);
         emit Events.FeePaid(roundId, treasury, protocolFee);
 
-        // Create next round
         _createNewRound();
     }
 }
